@@ -1,6 +1,6 @@
 ---
 title: "DZ1"
-author: "Ksenia_V"
+author: "Ksenia_Vekhova"
 date: "17.09.2024"
 output: word_document
 ---
