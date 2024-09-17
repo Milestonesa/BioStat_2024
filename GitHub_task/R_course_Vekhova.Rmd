@@ -1,0 +1,49 @@
+---
+title: "DZ1"
+author: "Ksenia_V"
+date: "17.09.2024"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(tibble)
+library(dplyr)
+library(stringr)
+```
+
+## 4.1
+```{r echo=TRUE}
+
+data <- read_delim("./data_tsv.tsv", delim = "\t")
+data
+# data %>% mutate(across(!contains("E1") & !c(`Группа`, `Возраст`) & !where(is.factor), function(x) x ^ 2), across(contains("E2"), function(x) x * 100))
+```
+
+## 5.1
+```{r echo=TRUE}
+
+mean(c(-13, 19, -24, NA, 30, 64, -53, NA, 50, 31, -58, -34, -3, -34, 77), na.rm = TRUE)
+median(c(-91, -33, 13, 34, 34, 75, -80, -35, -90, -72, 70, 67, -100, -94, -18))
+min(c(60.22, 31.91, 72.71, 52.49, 46.21, 60.39, 60.09))
+max(c(13, 50, 44, 37, 20, 29, -8, 4, 45, 31, 47, -5, -2, 24, 17, 45, 44, 31, -5, 26))
+quantile(c(63.92, 35.85, 26.9, 48.92, 43.1, 66.94, 47.06, 56.54, 29.1, 58.88))
+var(c(49.31, 44.47, 14.04, 44.43, 49.18, 40.73, 44.65, 41.91, 80.38, 80.09))
+sd(c(76.22, 65, 19.69, 29.84, 37.18, 70.93, 64.78, 61.66, 49.03, 51.56))
+IQR(c(26.17, 97.73, 24.81, 53.62, 87.72, 45.19, 45.7, 69.63, 36.76, 7.17), na.rm = FALSE, type = 7)
+sd(c(49.31, 44.47, 14.04, 44.43, 49.18, 40.73, 44.65, 41.91, 80.38, 80.09))/sqrt(length(c(49.31, 44.47, 14.04, 44.43, 49.18, 40.73, 44.65, 41.91, 80.38, 80.09)))
+```
+## 5.2
+```{r echo=TRUE}
+x <- readRDS("./numeric_data.rds")
+round(psych::describe(x, na.rm = TRUE, skew = FALSE, ranges = TRUE), 2)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+## 6.1
+```{r echo=TRUE}
+tibble(`var 1` = 1:10, `var 2` = `var 1` * 100)
+tibble(var_first = 1:10, var_second = ifelse(var_first < 5, var_first + 100, var_first))
+```
