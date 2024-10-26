@@ -1,0 +1,602 @@
+---
+title: "automatization_notebook"
+author: "Ksenia_Vekhova"
+output: word_document
+date: "25.10.2024"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(tidyr)
+library(ggbeeswarm)
+library(RColorBrewer) 
+
+install.packages("corrplot")
+install.packages("ggcorrplot")
+library(corrplot)
+library(ggcorrplot)
+```
+
+# Чтение данных
+
+В вашем варианте нужно использовать датасеты cardio_train_big или cardio_train_not_too_big.
+
+```{r}
+data_big <- read.csv("E:/Ksenia_V/cardio_train_big.csv")
+data_small <- read.csv("E:/Ksenia_V/cardio_train_not_too_big.csv")
+```
+
+# Выведите общее описание данных
+
+```{r}
+head(data_big)
+head(data_small)
+
+str(data_big)
+str(data_small)
+
+summary(data_big)
+summary(data_small)
+
+```
+
+# Очистка данных
+
+1)  Уберите переменные, в которых пропущенных значений больше 20% или уберите субъектов со слишком большим количеством пропущенных значений. Или совместите оба варианта. Напишите обоснование, почему вы выбрали тот или иной вариант:
+
+**Обоснование**: вариант с удалением переменных с более чем 20% пропущенных значений позволит упростить дальнейший анализ, удаление строк сохранит переменные, но можно непреднамеренно удалить субъекты из анализа. Я планирую работать с датасетом cardio_train_not_too_big, поэтому удаление строк сократит выборку, что может сказаться на результатах и качестве анализа. Поэтому я буду использовать удаление переменных с более чем 20% пропусков.
+
+2)  Переименуйте переменные в человекочитаемый вид (что делать с пробелами в названиях?); - Пробелы в названиях можно заменить на нижнее подчеркивание или по возможности на аббревиатуру без пробелов
+
+3)  В соответствии с описанием данных приведите переменные к нужному типу (numeric или factor);
+
+4)  Отсортируйте данные по возрасту по убыванию;
+
+5)  Сохраните в файл outliers.csv субъектов, которые являются выбросами (например, по правилу трёх сигм) — это необязательное задание со звёздочкой;
+
+6)  Присвойте получившийся датасет переменной "cleaned_data".
+
+```{r echo = TRUE}
+missing_data <- colSums(is.na(data_small)) / nrow(data_small)
+missing_data
+
+#результат анализа на пропущенные данные показывает 0, значит, пропущенных переменных в датасете нет
+
+data_small <- read.csv("E:/Ksenia_V/cardio_train_big.csv", sep = ";", header = TRUE)
+str(data_small)
+data_small <- data_small %>%
+  rename_with(~ .x %>% 
+                str_replace("ap_hi", "САД") %>% 
+                str_replace("ap_lo", "ДАД") %>% 
+                str_replace("age", "Возраст") %>%
+                str_replace("gender", "Пол") %>%
+                str_replace("height", "Рост") %>%                
+                str_replace("weight", "Вес") %>%
+                str_replace("cholesterol", "Холестерин") %>%
+                str_replace("gluc", "Глюкоза") %>%
+                str_replace("smoke", "Курение") %>%
+                str_replace("alco", "Алкоголь") %>%
+                str_replace("active", "Физнагрузка") %>%
+                str_replace("cardio", "СС_анамнез"))
+data_small$"Возраст" <- as.numeric(data_small$"Возраст") / 365.25                  
+data_small$"Пол" <- as.factor(data_small$"Пол")               
+data_small$"Рост" <- as.numeric(data_small$"Рост")              
+data_small$"Вес" <- as.numeric(data_small$"Вес")              
+data_small$"САД" <- as.numeric(data_small$"САД")               
+data_small$"ДАД" <- as.numeric(data_small$"ДАД")                
+data_small$"Холестерин" <- as.factor(data_small$"Холестерин")     
+data_small$"Глюкоза" <- as.factor(data_small$"Глюкоза")                   
+data_small$"Курение" <- as.factor(data_small$"Курение")                
+data_small$"Алкоголь" <- as.factor(data_small$"Алкоголь")                   
+data_small$"Физнагрузка" <- as.factor(data_small$"Физнагрузка")
+data_small$"СС_анамнез" <- as.factor(data_small$"СС_анамнез")
+
+str(data_small)
+
+data_small <- data_small %>%
+  arrange(desc(Возраст))
+mean_age <- mean(data_small$Возраст, na.rm = TRUE)
+sd_age <- sd(data_small$Возраст, na.rm = TRUE)
+lower_bound <- mean_age - 3 * sd_age
+upper_bound <- mean_age + 3 * sd_age
+outliers <- data_small %>%
+  filter(Возраст < lower_bound | Возраст > upper_bound)
+write.csv(outliers, "E:/Ksenia_V/outliers.csv", row.names = FALSE)
+cleaned_data <- data_small %>%
+  filter(Возраст >= lower_bound & Возраст <= upper_bound)
+
+str(cleaned_data)
+```
+
+# Сколько осталось переменных?
+
+```{r echo = TRUE}
+
+num_variables <- ncol(cleaned_data)
+cat("Количество переменных:", num_variables, "\n")
+
+```
+
+# Сколько осталось случаев?
+
+```{r echo = TRUE}
+
+num_cases <- nrow(cleaned_data)
+cat("Количество случаев:", num_cases, "\n")
+
+```
+
+# Есть ли в данных идентичные строки?
+
+```{r echo = TRUE}
+
+if (anyDuplicated(cleaned_data) > 0) {
+  cat("В данных есть идентичные строки.\n")
+} else {
+  cat("Идентичных строк в данных нет.\n")
+}
+
+```
+
+# Сколько всего переменных с пропущенными значениями в данных и сколько пропущенных точек в каждой такой переменной?
+
+```{r echo = TRUE}
+
+missing_counts <- sapply(cleaned_data, function(x) sum(is.na(x)))
+missing_variables <- missing_counts[missing_counts > 0]
+num_missing_variables <- length(missing_variables)
+cat("Количество переменных с пропущенными значениями:", num_missing_variables, "\n")
+if (num_missing_variables > 0) {
+  cat("Количество пропущенных точек в каждой из таких переменных:\n")
+  print(missing_variables)
+} else {
+  cat("В данных нет пропущенных значений.\n")
+}
+
+```
+
+# Описательные статистики
+
+## Количественные переменные
+
+1)  Рассчитайте для всех количественных переменных для каждой группы (наличие или отсутствие сердечно-сосудистых заболеваний):
+
+1.1) Количество значений;
+
+1.2) Количество пропущенных значений;
+
+```{r echo = TRUE}
+missing_info <- cleaned_data %>%
+  group_by(СС_анамнез) %>%
+  summarise(across(where(is.numeric), 
+                   list(count = ~ sum(!is.na(.)), 
+                        missing_count = ~ sum(is.na(.)))))
+
+print(missing_info)
+
+```
+
+1.3) Среднее;
+
+1.4) Медиану;
+
+```{r echo = TRUE}
+mean_median_info <- cleaned_data %>%
+  group_by(СС_анамнез) %>%
+  summarise(across(where(is.numeric), 
+                   list(mean = ~ mean(., na.rm = TRUE), 
+                        median = ~ median(., na.rm = TRUE)),
+                   .names = "{.col}_{.fn}"))
+
+print(mean_median_info)
+
+```
+
+1.5) Стандартное отклонение;
+
+```{r echo = TRUE}
+
+sd_info <- cleaned_data %>%
+  group_by(СС_анамнез) %>%
+  summarise(across(where(is.numeric), 
+                   list(sd = ~ sd(., na.rm = TRUE)),
+                   .names = "{.col}_{.fn}"))
+
+print(sd_info)
+
+```
+
+1.6) 25% квантиль и 75% квантиль;
+
+1.7) Интерквартильный размах;
+
+```{r echo = TRUE}
+
+quantile_info <- cleaned_data %>%
+  group_by(СС_анамнез) %>%
+  summarise(across(where(is.numeric), 
+                   list(q25 = ~ quantile(., 0.25, na.rm = TRUE), 
+                        q75 = ~ quantile(., 0.75, na.rm = TRUE), 
+                        iqr = ~ IQR(., na.rm = TRUE)),
+                   .names = "{.col}_{.fn}"))
+
+print(quantile_info)
+
+```
+
+1.8) Минимум;
+
+1.9) Максимум;
+
+```{r echo = TRUE}
+
+min_max_info <- cleaned_data %>%
+  group_by(СС_анамнез) %>%
+  summarise(across(where(is.numeric), 
+                   list(min = ~ min(., na.rm = TRUE), 
+                        max = ~ max(., na.rm = TRUE)),
+                   .names = "{.col}_{.fn}"))
+
+print(min_max_info)
+
+```
+
+1.10) 95% ДИ для среднего - задание со звёздочкой.
+
+```{r echo = TRUE}
+
+ci_info <- cleaned_data %>%
+  group_by(СС_анамнез) %>%
+  summarise(across(where(is.numeric), 
+                   list(ci_lower = ~ mean(., na.rm = TRUE) - qt(0.975, df = sum(!is.na(.)) - 1) * (sd(., na.rm = TRUE) / sqrt(sum(!is.na(.)))),
+                                   ci_upper = ~ mean(., na.rm = TRUE) + qt(0.975, df = sum(!is.na(.)) - 1) * (sd(., na.rm = TRUE) / sqrt(sum(!is.na(.))))),
+                   .names = "{.col}_{.fn}"))
+
+print(ci_info)
+
+```
+
+## Категориальные переменные
+
+1)  Рассчитайте для всех категориальных переменных для каждой группы (наличие или отсутствие сердечно-сосудистых заболеваний):
+
+1.1) Абсолютное количество;
+
+```{r echo = TRUE}
+
+absolute_counts <- cleaned_data %>%
+  group_by(СС_анамнез) %>%
+  summarise(across(where(is.factor), 
+                   ~ n(), 
+                   .names = "{.col}_abs_count"),
+            .groups = "drop")
+
+print(absolute_counts)
+
+
+```
+
+1.2) Относительное количество внутри группы;
+
+```{r echo = TRUE}
+
+relative_counts <- cleaned_data %>%
+  group_by(СС_анамнез) %>%
+  summarise(across(where(is.factor), 
+                   ~ sum(. == unique(.)) / n() * 100, 
+                   .names = "rel_count_{.col}"),
+            .groups = "drop")
+
+print("Относительное количество для категориальных переменных:")
+print(relative_counts)
+
+```
+
+1.3) 95% ДИ для доли внутри группы - задание со звёздочкой.
+
+```{r echo = TRUE}
+ci_proportion <- cleaned_data %>%
+  group_by(СС_анамнез) %>%
+  summarise(across(where(is.factor), 
+                   ~ {
+                     p <- mean(. == levels(.)[1], na.rm = TRUE) 
+                     n <- sum(!is.na(.)) 
+                     se <- sqrt((p * (1 - p)) / n) 
+                     ci_lower <- p - 1.96 * se 
+                     ci_upper <- p + 1.96 * se 
+                     c(CI_Lower = ci_lower, Proportion = p, CI_Upper = ci_upper) 
+                   },
+                   .names = "{.col}_{.fn}"),
+            .groups = "drop")
+
+ci_proportion_long <- ci_proportion %>%
+  pivot_longer(cols = -СС_анамнез, 
+               names_to = c("variable", ".value"), 
+               names_sep = "_") 
+
+print(ci_proportion_long)
+
+```
+
+# Визуализация
+
+## Количественные переменные
+
+1)  Для каждой количественной переменной сделайте боксплоты по группам. Расположите их либо на отдельных рисунках, либо на одном, но читаемо;
+
+```{r echo = TRUE}
+quant_vars <- c("Возраст", "Рост", "Вес", "САД", "ДАД") 
+for (var in quant_vars) {
+  p <- ggplot(cleaned_data, aes(x = factor(СС_анамнез), y = !!sym(var))) +
+    geom_boxplot(fill = "lightblue", color = "darkblue") +
+    labs(title = paste(var, "по СС_анамнез"),
+         x = "СС_анамнез (0 - отсутствие, 1 - наличие)",
+         y = var) +
+    theme_minimal()
+    print(p)  
+}
+```
+
+2)  Наложите на боксплоты beeplots - задание со звёздочкой.
+
+```{r echo = TRUE}
+
+quant_vars <- c("Возраст", "Рост", "Вес", "САД", "ДАД")
+for (var in quant_vars) {
+  p <- ggplot(cleaned_data, aes(x = factor(СС_анамнез), y = !!sym(var))) +
+    geom_boxplot(aes(fill = factor(СС_анамнез)), color = "black", alpha = 0.5) +  
+    geom_beeswarm(aes(color = factor(СС_анамнез)), size = 1.5, alpha = 0.7, cex = 2) + 
+    scale_fill_brewer(palette = "Set3") +  
+    scale_color_brewer(palette = "Set3") +
+    labs(title = paste(var, "по СС_анамнез"),
+         x = "СС_анамнез (0 - отсутствие, 1 - наличие)",
+         y = var) +
+    theme_minimal()
+  
+  print(p)
+}
+
+```
+
+
+3)  Раскрасьте боксплоты с помощью библиотеки RColorBrewer.
+
+```{r echo = TRUE}
+
+quant_vars <- c("Возраст", "Рост", "Вес", "САД", "ДАД") 
+for (var in quant_vars) {
+  p <- ggplot(cleaned_data, aes(x = factor(СС_анамнез), y = !!sym(var))) +
+    geom_boxplot(aes(fill = factor(СС_анамнез)), color = "black") + 
+    scale_fill_brewer(palette = "Set3") + 
+    labs(title = paste(var, "по СС_анамнез"),
+         x = "СС_анамнез (0 - отсутствие, 1 - наличие)",
+         y = var) +
+    theme_minimal()
+    print(p)  
+}
+```
+
+## Категориальные переменные
+
+1)  Сделайте подходящие визуализации категориальных переменных. Обоснуйте, почему выбрали именно этот тип.
+
+Я выбрала гистограммы, так как они используются для отображения частоты каждого уровня категориальной переменной и позволяют оценить распределенние данных по категориям
+
+```{r echo = TRUE}
+
+cat_vars <- c("Пол", "Холестерин", "Глюкоза", "Курение", "Алкоголь", "Физнагрузка", "СС_анамнез")
+for (var in cat_vars) {
+  p <- ggplot(cleaned_data, aes(x = !!sym(var))) +
+    geom_bar(fill = "steelblue") +
+    labs(title = paste(var), x = var, y = "Частота") +
+    theme_minimal()
+    print(p)
+}
+
+```
+
+# Статистические оценки
+
+## Проверка на нормальность
+
+1)  Оцените каждую переменную на соответствие нормальному распределению с помощью теста Шапиро-Уилка. Какие из переменных являются нормальными и как как вы это поняли?
+
+```{r echo = TRUE}
+
+quant_vars <- c("Возраст", "Рост", "Вес", "САД", "ДАД")
+
+shapiro_results <- list()
+
+for (var in quant_vars) {
+  data_to_test <- na.omit(cleaned_data[[var]])
+  n <- length(data_to_test)
+  
+  if (n < 3) {
+    shapiro_results[[var]] <- "Недостаточно данных" 
+  } else if (n > 5000) {
+    shapiro_results[[var]] <- "Размер выборки слишком большой для теста"
+  } else {
+    shapiro_test <- shapiro.test(data_to_test)
+    shapiro_results[[var]] <- shapiro_test$p.value
+  }
+}
+
+shapiro_results_df <- tibble(Variable = names(shapiro_results), P_Value = unlist(shapiro_results))
+
+print(shapiro_results_df)
+
+
+```
+
+2)  Постройте для каждой количественной переменной QQ-плот. Отличаются ли выводы от теста Шапиро-Уилка? Какой метод вы бы предпочли и почему?
+
+С учетом всех комментариев и ошибок, которые высвечивались при попытке использовать тест Шапиро-Уилка, он не может быть применен к данным с размером выборки больше 5000. Таким образом, на выборке с несколькими десятками тысяч записей он не сможет дать достоверную информацию. 
+
+Вместо него можно использовать Q-Q плотов по ряду причин:
+1. Q-Q плоты менее чувствительны к выбросам, что позволяет лучше увидеть общую тенденцию распределения
+
+2. с увеличением размера выборки увеличивается вероятность того, что оценка распределения будет более точной и Q-Q графики становятся более информативными и надежными
+
+3. Q-Q график может показать, насколько данные отклоняются от нормальности
+
+
+```{r echo = TRUE}
+quant_vars <- c("Возраст", "Рост", "Вес", "САД", "ДАД")
+plot_qq <- function(data, var) {
+  ggplot(data, aes(sample = .data[[var]])) +
+    geom_qq() +
+    geom_qq_line(color = "red") +  
+    labs(title = paste("Q-Q плот для", var),
+         x = "Теоретические квантили",
+         y = "Выборочные квантили") +
+    theme_minimal()
+}
+
+for (var in quant_vars) {
+  data_to_plot <- na.omit(cleaned_data[[var]])
+  if (length(data_to_plot) > 2) {  
+    print(plot_qq(cleaned_data, var))
+  }
+}
+```
+
+3)  Ниже напишите, какие ещё методы проверки на нормальность вы знаете и какие у них есть ограничения.
+
+ 1. Тест Колмогорова-Смирнова, ограничения - менее мощный по сравнению с тестом Шапиро-Уилка, чувствителен к небольшим отклонениям в центральной части распределения, но не к крайним значениям
+ 2. Тест Андерсона-Дарлинга, ограничения - не подходит для очень больших выборок, так как может давать ложные результаты
+ 3. Тест Д'Агостино, ограничения - чувствителен к выбросам и может давать ложные результаты
+ 4. Гистограммы, ограничения - сложности в интерпретации на небольших выборках
+ 5. Тест Лиллиефорса, ограничения - меньшая мощность по сравнению с другими тестами, например тестом Шапиро-Уилка
+
+
+## Сравнение групп
+
+1)  Сравните группы (переменная **cardio**) по каждой переменной (как количественной, так и категориальной). Для каждой переменной выберите нужный критерий и кратко обоснуйте его выбор в комментариях.
+
+
+Для категориальных переменных (пол, холестерин, глюкоза, курение, алкоголь, физнагрузка) рационально использовать хи-квадрат тест, так как он подходит для сравнения частот между группами
+
+```{r echo = TRUE}
+
+table_pol <- table(cleaned_data$Пол, cleaned_data$СС_анамнез)
+chisq.test(table_pol)
+```
+```{r echo = TRUE}
+
+table_chol <- table(cleaned_data$Холестерин, cleaned_data$СС_анамнез)
+chisq.test(table_chol)
+```
+
+```{r echo = TRUE}
+
+table_glu <- table(cleaned_data$Глюкоза, cleaned_data$СС_анамнез)
+chisq.test(table_glu)
+```
+
+```{r echo = TRUE}
+
+table_smok <- table(cleaned_data$Курение, cleaned_data$СС_анамнез)
+chisq.test(table_smok)
+```
+
+```{r echo = TRUE}
+
+table_alco <- table(cleaned_data$Алкоголь, cleaned_data$СС_анамнез)
+chisq.test(table_alco)
+```
+
+```{r echo = TRUE}
+
+table_phys <- table(cleaned_data$Физнагрузка, cleaned_data$СС_анамнез)
+chisq.test(table_phys)
+```
+Для количественных переменных (возраст, рост, вес, САД, ДАД) можно было бы использовать тест Шапиро-Уилка, но в данном случае он не полходит из-за размера выборки. Поэтому я буду использовать тест Колмогорова-Смирнова и Q-Q плота для проверки нормальности и t-тест или непараметрический тест Манна-Уитни для нормального и ненормального распределения соответственно
+
+```{r echo = TRUE}
+
+quant_vars <- c("Возраст", "Рост", "Вес", "САД", "ДАД")
+
+results <- data.frame(Variable = character(),
+                      P_Value = numeric(),
+                      Test = character(),
+                      stringsAsFactors = FALSE)
+
+for (var in quant_vars) {
+    qqnorm(cleaned_data[[var]], main = paste("Q-Q plot for", var))
+    qqline(cleaned_data[[var]], col = "red")
+    
+    ks_result <- ks.test(cleaned_data[[var]][cleaned_data$СС_анамнез == 0], 
+                          cleaned_data[[var]][cleaned_data$СС_анамнез == 1])
+    
+    results <- rbind(results, data.frame(Variable = var,
+                                          P_Value = ks_result$p.value,
+                                          Test = "Kolmogorov-Smirnov"))
+    
+    if (ks_result$p.value > 0.05) {
+        t_result <- t.test(cleaned_data[[var]] ~ cleaned_data$СС_анамнез)
+        results <- rbind(results, data.frame(Variable = var,
+                                              P_Value = t_result$p.value,
+                                              Test = "t-test"))
+    } else {
+        wilcox_result <- wilcox.test(cleaned_data[[var]] ~ cleaned_data$СС_анамнез)
+        results <- rbind(results, data.frame(Variable = var,
+                                              P_Value = wilcox_result$p.value,
+                                              Test = "Mann-Whitney U test"))
+    }
+}
+
+print(results)
+```
+
+
+# Далее идут **необязательные** дополнительные задания, которые могут принести вам дополнительные баллы в том числе в случае ошибок в предыдущих
+
+## Корреляционный анализ
+
+1)  Создайте корреляционную матрицу с визуализацией и поправкой на множественные сравнения. Объясните, когда лучше использовать корреляционные матрицы и в чём минусы и плюсы корреляционных исследований.
+
+```{r echo = TRUE}
+
+quant_vars <- cleaned_data[, sapply(cleaned_data, is.numeric)]
+cor_matrix <- cor(quant_vars, use = "complete.obs")
+p_values <- cor.mtest(quant_vars, conf.level = 0.95)$p
+p.adjusted <- p.adjust(p_values, method = "bonferroni")
+ggcorrplot(cor_matrix, 
+           p.mat = p.adjusted, 
+           sig.level = 0.05, 
+           insig = "blank")
+
+```
+Корреляционные матрицы позволяют визуализировать то, как количественные переменные связаны друг с другом. Из плюсов: могут использоваться как предварительный анализ для дальнейшего статистического моделирования и позволяют наглядно оценить потенциальные взаимосвязи между переменными. Однако корреляция не всегда означает причинность, поэтому высокая корреляция между двумя переменными не обязательно указывает на то, что одна из них вызывает изменения в другой. Также наличие выбросов может значительно исказить коэффициенты корреляции. 
+
+
+## Моделирование
+
+1)  Постройте регрессионную модель для переменной **cardio**. Опишите процесс построения
+
+Процесс построения:
+1. подготовка данных
+- убеждаемся, что переменная **cardio** (в моем случае "СС_анамнез") имеет правильный формат (фактор с двумя уровнями)
+- включаем в модель количественные переменнные
+
+2. создание модели для бинарной логистической регрессии
+
+3. оценка модели и интерпретация результатов
+
+
+```{r echo = TRUE}
+
+cleaned_data$СС_анамнез <- as.factor(cleaned_data$СС_анамнез)
+
+model <- glm(СС_анамнез ~ Возраст + Рост + Вес + САД + ДАД,
+             data = cleaned_data, 
+             family = binomial)
+
+summary(model)
+
+```
