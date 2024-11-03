@@ -1,0 +1,120 @@
+---
+title: "Проект_03.11"
+author: "Ksenia_V"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, error = FALSE)
+
+library(readr)
+library(dplyr)
+library(knitr)  
+library(tidyverse)
+library(ggplot2)
+install.packages("GGally")
+library("GGally")
+
+```
+
+```{r echo=TRUE}
+ggplot(insurance_data, aes(x = age)) +
+  geom_histogram(binwidth = 5, fill = "lightblue", color = "black", alpha = 0.7) +
+  labs(title = "Распределение значений возраста",
+       x = "Возраст",
+       y = "Частота") +
+  theme_minimal()
+
+ggplot(insurance_data, aes(x = family)) +
+  geom_histogram(binwidth = 1, fill = "lightgreen", color = "black", alpha = 0.7) +
+  labs(title = "Распределение значений о количестве членов семьи",
+       x = "Количество членов семьи",
+       y = "Частота") +
+  theme_minimal()
+
+categorical_vars <- c("health", "limit", "gender", "insurance", "married", "selfemp", "region", "ethnicity", "education")
+
+for (var in categorical_vars) {
+  p <- ggplot(insurance_data, aes_string(x = var)) +
+    geom_bar(fill = "steelblue", color = "black", alpha = 0.7) +
+    labs(title = switch(var,
+        health = "Распределение по состоянию здоровья",
+        limit = "Распределение по наличию ограничений",
+        gender = "Распределение по полу",
+        insurance = "Распределение по наличию медицинской страховки",
+        married = "Распределение по семейному положения",
+        selfemp = "Распределение по самозанятости",
+        region = "Распределение по регионам",
+        ethnicity = "Распределение по этнической принадлежности",
+        education = "Распределение по наличию образования",
+        "Распределение по переменной"), 
+         x = "Категория",
+         y = "Частота") +
+    scale_x_discrete(labels = function(x) {
+      switch(var,
+        health = c("Здоров(-а)", "Есть проблемы со здоровьем"),
+        limit = c("Да", "Нет"),
+        gender = c("Мужской", "Женский"),
+        insurance = c("Есть", "Нет"),
+        married = c("Замужем/Женат", "Не замужем/Не женат"),
+        selfemp = c("Самозанятый", "Не самозанятый"),
+        region = c("Среднезападный", "Северо-восточный", "Южный", "Западный"),
+        ethnicity = c("Афроамериканская", "Европейская", "Другие"),
+        education = c("Бакалавр", "ООР", "Среднее", "Магистр", "Нет образования", "Другое", "PhD"),
+        x)
+    }) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+  print(p)
+}
+```
+```{r echo=TRUE}
+ggplot(insurance_data, aes(x = insurance, y = age)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(title = "Возраст по наличию медицинской страховки",
+       x = "Наличие медицинской страховки",
+       y = "Возраст (лет)") +
+  scale_x_discrete(labels = c("Нет", "Есть")) +
+  theme_minimal()
+
+ggplot(insurance_data, aes(x = insurance, y = age)) +
+  geom_violin(fill = "lightgreen") +
+  labs(title = "Возраст по наличию медицинской страховки",
+       x = "Наличие медицинской страховки",
+       y = "Возраст (лет)") +
+  scale_x_discrete(labels = c("Нет", "Есть")) +
+  theme_minimal()
+
+ggplot(insurance_data, aes(x = age)) +
+  geom_histogram(binwidth = 5, fill = "lightblue", color = "black", alpha = 0.7) +
+  labs(title = "Распределение возраста по наличию медицинской страховки",
+       x = "Возраст (лет)",
+       y = "Частота") +
+  facet_wrap(~ insurance) +
+  scale_x_continuous(breaks = seq(0, 100, by = 5)) +  
+  theme_minimal()
+
+ggplot(insurance_data, aes(x = age, fill = insurance)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Плотность возраста по наличию медицинской страховки",
+       x = "Возраст (лет)",
+       y = "Плотность") +
+  scale_fill_discrete(labels = c("Нет", "Есть")) +  
+  theme_minimal()
+
+
+ggplot(insurance_data, aes(x = insurance, fill = gender)) +
+  geom_bar(position = "fill") +
+  labs(title = "Доля мужчин и женщин по наличию медицинской страховки",
+       x = "Наличие медицинской страховки",
+       y = "Доля") +
+  scale_x_discrete(labels = c("Нет", "Есть")) +
+  scale_fill_manual(name = "Пол",  
+                    values = c("male" = "lightblue", "female" = "pink"), 
+                    labels = c("male" = "Мужчины", "female" = "Женщины")) +
+  theme_minimal()
+
+```
+
+
