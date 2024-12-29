@@ -1,0 +1,97 @@
+---
+title: "Multiple_comparisons"
+author: "Ksenia_V"
+date: "29.12.2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+
+```{r echo=TRUE}
+library(dplyr)
+library(ggplot2)
+
+# Чтение данных
+soccer_general <- read.csv("./soccer.csv", sep = ";")[, 2:6] %>%
+  mutate(Position = as.factor(Position),
+         Nationality = as.factor(Nationality),
+         Age = as.numeric(Age),
+         Height = as.numeric(Height)) %>%
+  filter(Nationality %in% c("Spanish", "Italian", "German", "English", "Argentinian"))
+
+# Установка seed и создание выборки
+set.seed(1)
+soccer_wrk <- soccer_general[sample(1:nrow(soccer_general), 150), ] %>%
+  mutate(Nationality = factor(Nationality))
+
+# Попарные t-тесты без поправок
+pairwise_no_adj <- pairwise.t.test(soccer_wrk$Height, soccer_wrk$Position, 
+                                   p.adjust.method = "none", pool.sd = FALSE)
+
+# Попарные t-тесты с поправкой Бонферрони
+pairwise_bonf <- pairwise.t.test(soccer_wrk$Height, soccer_wrk$Position, 
+                                 p.adjust.method = "bonferroni", pool.sd = FALSE)
+
+# Попарные t-тесты с поправкой Холма
+pairwise_holm <- pairwise.t.test(soccer_wrk$Height, soccer_wrk$Position, 
+                                 p.adjust.method = "holm", pool.sd = FALSE)
+
+# Попарные t-тесты с поправкой Бенджамини-Хохберга
+pairwise_bh <- pairwise.t.test(soccer_wrk$Height, soccer_wrk$Position, 
+                               p.adjust.method = "BH", pool.sd = FALSE)
+
+# Вывод результатов
+print("Без поправок:")
+print(pairwise_no_adj)
+
+print("С поправкой Бонферрони:")
+print(pairwise_bonf)
+
+print("С поправкой Холма:")
+print(pairwise_holm)
+
+print("С поправкой Бенджамини-Хохберга:")
+print(pairwise_bh)
+
+# Подсчёт количества значимых различий
+cat("Количество значимых различий (p < 0.05):\n")
+cat("Без поправок:", sum(pairwise_no_adj$p.value < 0.05, na.rm = TRUE), "\n")
+cat("С поправкой Бонферрони:", sum(pairwise_bonf$p.value < 0.05, na.rm = TRUE), "\n")
+cat("С поправкой Холма:", sum(pairwise_holm$p.value < 0.05, na.rm = TRUE), "\n")
+cat("С поправкой Бенджамини-Хохберга:", sum(pairwise_bh$p.value < 0.05, na.rm = TRUE), "\n")
+
+# Вычисление средних и доверительных интервалов
+positions <- levels(soccer_wrk$Position)
+means <- tapply(soccer_wrk$Height, soccer_wrk$Position, mean)
+se <- tapply(soccer_wrk$Height, soccer_wrk$Position, function(x) sd(x) / sqrt(length(x)))
+
+df <- data.frame(
+  Position = positions,
+  Mean = means,
+  Lower = means - qt(0.975, df = 149) * se,
+  Upper = means + qt(0.975, df = 149) * se
+)
+
+# Построение графика
+ggplot(df, aes(x = Position, y = Mean)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0.2) +
+  theme_minimal() +
+  labs(title = "Доверительные интервалы среднего роста футболистов",
+       y = "Средний рост (см)", x = "Позиция")
+
+
+```
+#Комментарии и рассуждения
+
+Согласно результатам попарных t-тестов, статистически значимая разница в среднем росте футболистов наблюдается для некоторых пар позиций, а именно Defender-Goalkeeper и Goalkeeper-Midfielder.
+
+Эти различия остаются значимыми при всех методах поправок на множественные сравнения, включая строгие методы (Бонферрони, Холм). Для других пар позиций, таких как Defender-Forward, статистически значимой разницы не выявлено.
+
+Графически доверительные интервалы для Defender и Goalkeeper не перекрываются, что подтверждает наличие разницы. Аналогично, интервалы для Goalkeeper и Midfielder также не пересекаются. Для других пар (например, Forward-Midfielder) доверительные интервалы частично перекрываются, что согласуется с отсутствием статистически значимой разницы.
+
+При выполнении попарных тестов без поправок было обнаружено 4 значимых различия (p<0.05). С поправками Холма и Бенджамина-Хохберга также обнаружено 4 значимых различия, однако наличие данных поправок уменьшает вероятность ложных открытий. Таким образом, без поправок вохможно 1 ложное открытие, с поправками это практически невозможно.
