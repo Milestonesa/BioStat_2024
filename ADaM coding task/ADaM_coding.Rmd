@@ -1,0 +1,103 @@
+---
+title: "ADaM coding"
+author: "Ksenia_V"
+date: "16.01.2025"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(readxl)
+library(openxlsx)
+library(dplyr)
+```
+
+# Чтение данных из Excel-файлов
+
+```{r echo=TRUE}
+ADSL <- read_excel("./ADaM coding/ADaM-like/ADSL.xlsx")
+MH <- read_excel("./ADaM coding/SDTM/MH_MEDICALHISTORY.xlsx")
+```
+
+# Подготовка данных ADSL
+
+```{r echo=TRUE}
+prepare_ADSL <- function(data) {
+  data %>%
+    select(STUDYID, SUBJID, USUBJID, TRTP, TRTPN) %>%
+    mutate(STUDYID = as.character(STUDYID),
+           USUBJID = as.character(USUBJID),
+           TRTP = as.character(TRTP),
+           TRTPN = as.numeric(TRTPN))
+}
+
+ADSL_new <- prepare_ADSL(ADSL)
+```
+
+# Подготовка данных MH
+
+```{r echo=TRUE}
+prepare_MH <- function(data) {
+  data %>%
+    filter(MHCAT == "Medical History") %>%
+    select(STUDYID, SUBJID, MHSEQ, MHCAT, MHTERM, MHSTDTC, MHENDTC, MHENRTPT, MHDECOD, MHBODSYS) %>%
+    mutate(USUBJID = paste(STUDYID, SUBJID, sep = '-'),
+           MHSEQ = as.numeric(MHSEQ),
+           MHCAT = as.character(MHCAT),
+           MHTERM = as.character(MHTERM),
+           MHDECOD = as.character(MHDECOD),
+           MHBODSYS = as.character(MHBODSYS),
+           MHSTDTC = as.character(MHSTDTC)) %>%
+    process_dates()
+}
+
+process_dates <- function(data) {
+  data %>%
+    mutate(ASTDT = case_when(
+      nchar(MHSTDTC) == 4 ~ format(as.Date(paste(MHSTDTC,"-01-01", sep=""), format = "%Y-%m-%d"), "%d.%m.%Y"),
+      nchar(MHSTDTC) == 7 ~ format(as.Date(paste(MHSTDTC,"-01", sep=""), format = "%Y-%m-%d"), "%d.%m.%Y"),
+      TRUE ~ format(as.Date(MHSTDTC, format = "%Y-%m-%d"),"%d.%m.%Y")),
+           ASTDTF = case_when(
+             is.na(MHSTDTC) ~ 'Y',
+             nchar(MHSTDTC) == 4 ~ 'M',
+             nchar(MHSTDTC) == 7 ~ 'D',
+             TRUE ~ ""),
+           MHENDTC = as.character(MHENDTC),
+           AENDT = case_when(
+             MHENRTPT == 'ONGOING' ~ "",
+             nchar(MHENDTC) == 4 ~ format(as.Date(paste(MHENDTC,"-01-01", sep=""), format = "%Y-%m-%d"), "%d.%m.%Y"),
+             nchar(MHENDTC) == 7 ~ format(as.Date(paste(MHENDTC,"-01", sep=""), format = "%Y-%m-%d"), "%d.%m.%Y"),
+             TRUE ~ format(as.Date(MHENDTC, format = "%Y-%m-%d"),"%d.%m.%Y")),
+           AENDTF = case_when(
+             is.na(MHENDTC) ~ 'Y',
+             nchar(MHSTDTC) == 4 ~ 'M',
+             nchar(MHSTDTC) == 7 ~ 'D',
+             TRUE ~ ""),
+           MHENRF = if_else(MHENRTPT == 'ONGOING','ONGOING',""))
+}
+
+MH_new <- prepare_MH(MH)
+
+```
+
+# Объединение данных
+
+```{r echo=TRUE}
+ADMH <- left_join(ADSL_new, MH_new)
+ADMH$SUBJID <- NULL
+ADMH <- filter(ADMH, !is.na(MHTERM))
+ADMH <- ADMH[,c("STUDYID","USUBJID","TRTP","TRTPN","MHSEQ", "MHCAT","MHTERM",
+                "MHDECOD", "MHBODSYS", "MHSTDTC", "ASTDT", "ASTDTF", "MHENDTC",
+                "AENDT", "AENDTF", "MHENRTPT", "MHENRF")]
+
+```
+
+# Запись результатов в Excel
+
+```{r echo=TRUE}
+
+write.xlsx(ADMH, "./ADaM coding/ADaM-like/ADMH.xlsx")
+
+```
